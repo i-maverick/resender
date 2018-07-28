@@ -1,23 +1,17 @@
-status = ['Not started', 'Starting', 'Running', 'Stopping']
+import asyncio
 
 
 class Resender:
     def __init__(self, data):
         self.id = data['id']
         self.name = data['name']
-        self.status = status[0]
+        self.running = False
 
-    def start(self):
-        self.status = status[2]
-        return f'Start {self.name}'
+    async def start(self):
+        self.running = True
+        while self.running:
+            print(f'Recender id={self.id} is started')
+            await asyncio.sleep(1)
 
-    def stop(self):
-        self.status = status[0]
-        return f'Stop {self.name}'
-
-    def restart(self):
-        self.status = status[2]
-        return f'Restart {self.name}'
-
-    def status(self):
-        return f'Status {self.name}: {self.status}'
+    async def stop(self):
+        self.running = False
