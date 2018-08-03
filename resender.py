@@ -10,18 +10,22 @@ class Resender:
     def __init__(self, data, loop):
         self.id = data['id']
         self.name = data['name']
-        self.port_sv = data['port_sv']
-        self.port_ts = data['port_ts']
-        self.port_stub = data['port_stub']
-        self.skip_ts = data['skip_ts']
+
+        self.ts_initiator = data['ts_initiator']
+        self.initiator_port = data['initiator_port']
+        self.receiver_port = data['receiver_port']
+#         self.stub_port = data['stub_port']
+#         self.use_stub = data['use_stub']
+
         self.running = True
         self.loop = loop
 
-        self.sv_writer = None
-        self.ts_writer = None
-        self.stub_writer = None
+#         self.sv_writer = None
+#         self.ts_writer = None
+#         self.stub_writer = None
 
         self.setup_logger()
+        self.queue = asyncio.Queue()
         self.log = logging.getLogger('{}'.format(self.name))
 
     @staticmethod
@@ -33,31 +37,16 @@ class Resender:
         )
 
     @staticmethod
-    async def get_connection(host, port, loop):
-        try:
-            reader, writer = await asyncio.open_connection(host=host, port=port, loop=loop)
-            return reader, writer
-        except (asyncio.TimeoutError, ConnectionRefusedError) as err:
-            print('Error connecting to SV: {}'.format(err))
-            return None, None
-
-    @staticmethod
     async def prepare_response(data):
         return data
 
-    async def start(self):
-        await asyncio.start_server(lambda r, w: self.connected(r, w, True),
-                                   HOST, self.port_ts, loop=self.loop)
-        await asyncio.start_server(lambda r, w: self.connected(r, w, True),
-                                   HOST, self.port_stub, loop=self.loop)
-
-    async def connected(self, reader, writer, is_ts):
-        if is_ts:
-            self.ts_writer = writer
-            print('TS connected')
-        else:
-            self.stub_writer = writer
-            print('Stub connected')
+    async def initiator_connected(self, reader, writer):
+#         if is_ts:
+#             self.ts_writer = writer
+#             print('TS connected')
+#         else:
+#             self.stub_writer = writer
+#             print('Stub connected')
 
         while self.running:
             data = await reader.read(READ_BUFFER)
@@ -73,13 +62,22 @@ class Resender:
                 self.log.debug('connection closing')
                 self.running = False
 
+    async def connect_initiator():
+        await asyncio.start_server(self.initiator_connected, HOST, self.initiator_port, self.loop)
+#         await asyncio.start_server(lambda r, w: self.connected(r, w, False),
+#                                    HOST, self.port_stub, loop=self.loop)
+
+    async def connect_receiver():
+        try:
+            reader, writer = await asyncio.open_connection(HOST, self.port_receiver, self.loop)
+        except (asyncio.TimeoutError, ConnectionRefusedError) as err:
+            print('Error connecting to receiver: {}'.format(err))
+
+    async def start(self):
+        await self.connect_initiator()
+        await self.connect_receiver()
+
     async def main_loop(self):
-        sv_reader, self.sv_writer = await self.get_connection(HOST, self.port_sv, self.loop)
-        if not sv_reader or not self.sv_writer:
-            return
-
-        await self.start()  # should be called from rest api
-
         while self.running:
             try:
                 data = await sv_reader.read(READ_BUFFER)
